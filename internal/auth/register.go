@@ -46,11 +46,12 @@ type DoctorInput struct {
 }
 
 type Service struct {
-	store *store.Store
+	store  *store.Store
+	tokens *TokenManager
 }
 
-func NewService(s *store.Store) *Service {
-	return &Service{s}
+func NewService(s *store.Store, t *TokenManager) *Service {
+	return &Service{store: s, tokens: t}
 }
 
 var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
