@@ -1,0 +1,25 @@
+
+# IDE
+.idea/
+*.iml
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Build output
+/bin/
+/api
+/api.exe
+*.exe
+*.test
+*.out
+
+# Coverage
+coverage.txt
+coverage.html
+
+# OS
+.DS_Store
+Thumbs.db
