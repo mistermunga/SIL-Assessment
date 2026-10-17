@@ -122,7 +122,7 @@ func validateRegistration(input RegisterInput) error {
 
 	switch {
 	case len(input.Password) < 8:
-		p["password"] = "must be at least 8 characters"
+		p["password"] = "must be at least 8 bytes"
 	case len(input.Password) > 72:
 		p["password"] = "must be at most 72 characters"
 	}
