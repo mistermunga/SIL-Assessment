@@ -7,7 +7,54 @@ package store
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const createPatient = `-- name: CreatePatient :exec
+INSERT INTO patients (patient_id) values ($1)
+`
+
+func (q *Queries) CreatePatient(ctx context.Context, patientID int32) error {
+	_, err := q.db.Exec(ctx, createPatient, patientID)
+	return err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (username, email, password_hash, firstname, lastname)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING user_id, username, email, password_hash, firstname, lastname, created_at, deleted_at
+`
+
+type CreateUserParams struct {
+	Username     string
+	Email        string
+	PasswordHash string
+	Firstname    pgtype.Text
+	Lastname     pgtype.Text
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Username,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Firstname,
+		arg.Lastname,
+	)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Firstname,
+		&i.Lastname,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
 
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT user_id, username, email, password_hash, firstname, lastname, created_at, deleted_at FROM users WHERE username = $1 AND deleted_at IS NULL
