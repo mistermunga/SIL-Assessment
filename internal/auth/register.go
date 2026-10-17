@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -124,12 +125,12 @@ func validateRegistration(input RegisterInput) error {
 	case len(input.Password) < 8:
 		p["password"] = "must be at least 8 bytes"
 	case len(input.Password) > 72:
-		p["password"] = "must be at most 72 characters"
+		p["password"] = "must be at most 72 bytes"
 	}
-	if len(input.Firstname) > 100 {
+	if utf8.RuneCountInString(input.Firstname) > 100 {
 		p["firstname"] = "must be at most 100 characters"
 	}
-	if len(input.Lastname) > 100 {
+	if utf8.RuneCountInString(input.Lastname) > 100 {
 		p["lastname"] = "must be at most 100 characters"
 	}
 
