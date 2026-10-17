@@ -24,4 +24,4 @@ coverage.html
 .DS_Store
 Thumbs.db
 
-.ps1
+*.ps1
