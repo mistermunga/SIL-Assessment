@@ -8,3 +8,6 @@ RETURNING *;
 
 -- name: CreatePatient :exec
 INSERT INTO patients (patient_id) values ($1);
+
+-- name: CreateDoctor :exec
+INSERT INTO doctors (doctor_id, is_admin) values ($1, $2);
