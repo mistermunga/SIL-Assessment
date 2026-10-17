@@ -73,9 +73,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 const getPrincipal = `-- name: GetPrincipal :one
 SELECT u.user_id,
        u.username,
-       (p.patient_id IS NOT NULL)  AS is_patient,
-       (d.doctor_id  IS NOT NULL)  AS is_doctor,
-       COALESCE(d.is_admin, false) AS is_admin
+       (p.patient_id IS NOT NULL)::boolean AS is_patient,
+       (d.doctor_id  IS NOT NULL)::boolean AS is_doctor,
+       COALESCE(d.is_admin, false)         AS is_admin
 FROM users u
          LEFT JOIN patients p ON p.patient_id = u.user_id
          LEFT JOIN doctors  d ON d.doctor_id  = u.user_id
@@ -85,8 +85,8 @@ WHERE u.user_id = $1 AND u.deleted_at IS NULL
 type GetPrincipalRow struct {
 	UserID    int32
 	Username  string
-	IsPatient interface{}
-	IsDoctor  interface{}
+	IsPatient bool
+	IsDoctor  bool
 	IsAdmin   bool
 }
 
