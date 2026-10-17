@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,8 +25,7 @@ func main() {
 
 func run() error {
 
-	err := config.SetUpVariables()
-	if err != nil {
+	if err := config.SetUpVariables(); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
