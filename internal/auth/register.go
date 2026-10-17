@@ -39,6 +39,11 @@ type RegisterInput struct {
 	Lastname  string
 }
 
+type DoctorInput struct {
+	UserInfo RegisterInput
+	IsAdmin  bool
+}
+
 type Service struct {
 	store *store.Store
 }
@@ -49,7 +54,7 @@ func NewService(s *store.Store) *Service {
 
 var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
 
-func (s *Service) RegisterPatient(ctx context.Context, input RegisterInput) (store.User, error) {
+func (s *Service) register(ctx context.Context, input RegisterInput, addRole func(q *store.Queries, userID int32) error) (store.User, error) {
 	input.Username = strings.ToLower(strings.TrimSpace(input.Username))
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	input.Firstname = strings.TrimSpace(input.Firstname)
@@ -77,7 +82,7 @@ func (s *Service) RegisterPatient(ctx context.Context, input RegisterInput) (sto
 			return err
 		}
 		user = u
-		return q.CreatePatient(ctx, u.UserID)
+		return addRole(q, u.UserID)
 	})
 	if err != nil {
 		if c, ok := store.UniqueViolation(err); ok {
@@ -88,9 +93,21 @@ func (s *Service) RegisterPatient(ctx context.Context, input RegisterInput) (sto
 				return store.User{}, ErrEmailTaken
 			}
 		}
-		return store.User{}, fmt.Errorf("register patient: %w", err)
+		return store.User{}, fmt.Errorf("register user: %w", err)
 	}
 	return user, nil
+}
+
+func (s *Service) RegisterPatient(ctx context.Context, in RegisterInput) (store.User, error) {
+	return s.register(ctx, in, func(q *store.Queries, id int32) error {
+		return q.CreatePatient(ctx, id)
+	})
+}
+
+func (s *Service) RegisterDoctor(ctx context.Context, in DoctorInput) (store.User, error) {
+	return s.register(ctx, in.UserInfo, func(q *store.Queries, userID int32) error {
+		return q.CreateDoctor(ctx, store.CreateDoctorParams{DoctorID: userID, IsAdmin: in.IsAdmin})
+	})
 }
 
 func validateRegistration(input RegisterInput) error {
@@ -121,7 +138,6 @@ func validateRegistration(input RegisterInput) error {
 	}
 
 	return nil
-
 }
 
 func optText(s string) pgtype.Text {
