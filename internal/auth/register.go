@@ -67,11 +67,11 @@ func (s *Service) RegisterPatient(ctx context.Context, input RegisterInput) (sto
 	var user store.User
 	err = s.store.InTx(ctx, func(q *store.Queries) error {
 		u, err := q.CreateUser(ctx, store.CreateUserParams{
-			input.Username,
-			input.Email,
-			hash,
-			optText(input.Firstname),
-			optText(input.Lastname),
+			Username:     input.Username,
+			Email:        input.Email,
+			PasswordHash: hash,
+			Firstname:    optText(input.Firstname),
+			Lastname:     optText(input.Lastname),
 		})
 		if err != nil {
 			return err
