@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"clinic/internal/config"
 	"context"
 	"errors"
 	"testing"
@@ -21,7 +20,6 @@ func setup(t *testing.T) (*auth.Service, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.NewPool(t)
 	tokens := auth.NewTokenManager(testSecret, 15*time.Minute)
-	_, _ = config.Load()
 	return auth.NewService(store.NewStore(pool), tokens), pool
 }
 
