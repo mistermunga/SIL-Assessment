@@ -1,9 +1,11 @@
 package auth_test
 
 import (
+	"clinic/internal/config"
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -18,7 +20,9 @@ const testPassword = "correct-horse-battery"
 func setup(t *testing.T) (*auth.Service, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.NewPool(t)
-	return auth.NewService(store.NewStore(pool)), pool
+	tokens := auth.NewTokenManager(testSecret, 15*time.Minute)
+	_, _ = config.Load()
+	return auth.NewService(store.NewStore(pool), tokens), pool
 }
 
 func input(username, email string) auth.RegisterInput {
