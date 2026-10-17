@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createDoctor = `-- name: CreateDoctor :exec
+INSERT INTO doctors (doctor_id, is_admin) values ($1, $2)
+`
+
+type CreateDoctorParams struct {
+	DoctorID int32
+	IsAdmin  bool
+}
+
+func (q *Queries) CreateDoctor(ctx context.Context, arg CreateDoctorParams) error {
+	_, err := q.db.Exec(ctx, createDoctor, arg.DoctorID, arg.IsAdmin)
+	return err
+}
+
 const createPatient = `-- name: CreatePatient :exec
 INSERT INTO patients (patient_id) values ($1)
 `
