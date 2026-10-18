@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"clinic/internal/apperr"
 	"clinic/internal/store"
 	"context"
 	"errors"
@@ -23,14 +24,6 @@ const (
 	constraintUsername = "users_username_key"
 	constraintEmail    = "users_email_key"
 )
-
-type ValidationError struct {
-	Problems map[string]string
-}
-
-func (e *ValidationError) Error() string {
-	return fmt.Sprintf("invalid input: %v", e.Problems)
-}
 
 type RegisterInput struct {
 	Username  string
@@ -135,8 +128,10 @@ func validateRegistration(input RegisterInput) error {
 		p["lastname"] = "must be at most 100 characters"
 	}
 
+	type ValidationError = apperr.ValidationError
+
 	if len(p) > 0 {
-		return &ValidationError{p}
+		return &ValidationError{Problems: p}
 	}
 
 	return nil
