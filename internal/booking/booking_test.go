@@ -406,7 +406,7 @@ func TestConcurrentBookingSameSlot(t *testing.T) {
 	errs := make([]error, n)
 	release := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -453,7 +453,7 @@ func TestConcurrentBookingSamePatient(t *testing.T) {
 	errs := make([]error, n)
 	release := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -504,7 +504,7 @@ func TestConcurrentCancel(t *testing.T) {
 	errs := make([]error, n)
 	release := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -546,7 +546,7 @@ func TestBookRacesScheduleChange(t *testing.T) {
 	open := scheduling.Shift{Weekday: 1, Start: "09:00", End: "17:00"}
 	late := scheduling.Shift{Weekday: 1, Start: "11:00", End: "17:00"} // excludes 10:00
 
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		if _, err := pool.Exec(ctx, "DELETE FROM appointments"); err != nil {
 			t.Fatal(err)
 		}
