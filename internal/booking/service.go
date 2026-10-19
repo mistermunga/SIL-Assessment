@@ -18,6 +18,8 @@ var (
 	ErrNotFound         = errors.New("appointment not found")
 	ErrAlreadyCancelled = errors.New("appointment already cancelled")
 	ErrNotCancellable   = errors.New("appointment cannot be cancelled")
+	ErrNotReschedulable = errors.New("appointment cannot be rescheduled")
+	ErrNotMarkable      = errors.New("outcome cannot be recorded")
 )
 
 // Names of the partial unique indexes in the migrations.
