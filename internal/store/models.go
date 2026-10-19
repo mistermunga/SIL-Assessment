@@ -63,6 +63,7 @@ type Appointment struct {
 	AppointmentStart time.Time
 	Status           AppointmentStatus
 	CreatedAt        time.Time
+	Notes            pgtype.Text
 }
 
 type Doctor struct {
