@@ -1,30 +1,39 @@
 package httpapi
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
 	"clinic/internal/accounts"
 	"clinic/internal/auth"
 	"clinic/internal/store"
-	"context"
-	"net/http"
-	"time"
 )
 
+// Registrar is what this module needs from the accounts service.
 type Registrar interface {
-	RegisterPatient(ctx context.Context, input accounts.RegisterInput) (store.User, error)
+	RegisterPatient(ctx context.Context, in accounts.RegisterInput) (store.User, error)
+}
+
+// TokenIssuer signs a token for a user. *auth.TokenManager satisfies it.
+type TokenIssuer interface {
+	Issue(userID int32) (token string, expiresAt time.Time, err error)
 }
 
 type AccountsModule struct {
-	svc Registrar
+	svc    Registrar
+	tokens TokenIssuer
+}
+
+func NewAccountsModule(svc Registrar, tokens TokenIssuer) AccountsModule {
+	return AccountsModule{svc: svc, tokens: tokens}
 }
 
 func (m AccountsModule) Routes() []Route {
 	return []Route{
-		{Pattern: "POST /patients", Handler: m.registerPatient},
+		{Pattern: "POST /patients", Handler: m.registerPatient}, // no Access: open
 	}
-}
-
-func NewAccountsModule(svc Registrar) AccountsModule {
-	return AccountsModule{svc: svc}
 }
 
 func (AccountsModule) ErrorRules() []ErrorRule {
@@ -67,6 +76,13 @@ func newUserResponse(u store.User, role auth.Role) userResponse {
 	}
 }
 
+// registrationResponse is the user plus a ready-to-use token. The embedded
+// tokenResponse's fields appear at the top level of the JSON.
+type registrationResponse struct {
+	User userResponse `json:"user"`
+	tokenResponse
+}
+
 func (m AccountsModule) registerPatient(w http.ResponseWriter, r *http.Request) error {
 	var req registerRequest
 	if err := readJSON(w, r, &req); err != nil {
@@ -83,5 +99,13 @@ func (m AccountsModule) registerPatient(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return err // the server maps it: 409, 422 or a generic 500
 	}
-	return writeJSON(w, http.StatusCreated, newUserResponse(u, auth.RolePatient))
+
+	token, expiresAt, err := m.tokens.Issue(u.UserID)
+	if err != nil {
+		return fmt.Errorf("issue token for new user %d: %w", u.UserID, err)
+	}
+	return writeJSON(w, http.StatusCreated, registrationResponse{
+		User:          newUserResponse(u, auth.RolePatient),
+		tokenResponse: newTokenResponse(token, expiresAt),
+	})
 }
