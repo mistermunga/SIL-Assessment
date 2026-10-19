@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"clinic/internal/accounts"
 	"clinic/internal/auth"
 )
 
@@ -19,12 +20,12 @@ func tokenFor(t *testing.T, svc *auth.Service, username string) string {
 }
 
 func TestAuthenticateRoles(t *testing.T) {
-	svc, _ := setup(t)
+	svc, acc, _ := setup(t)
 	ctx := context.Background()
 
-	pat, _ := svc.RegisterPatient(ctx, input("pat", "pat@example.com"))
-	doc, _ := svc.RegisterDoctor(ctx, auth.DoctorInput{UserInfo: input("doc", "doc@example.com")})
-	adm, _ := svc.RegisterDoctor(ctx, auth.DoctorInput{UserInfo: input("adm", "adm@example.com"), IsAdmin: true})
+	pat, _ := acc.RegisterPatient(ctx, input("pat", "pat@example.com"))
+	doc, _ := acc.RegisterDoctor(ctx, accounts.DoctorInput{UserInfo: input("doc", "doc@example.com")})
+	adm, _ := acc.RegisterDoctor(ctx, accounts.DoctorInput{UserInfo: input("adm", "adm@example.com"), IsAdmin: true})
 
 	cases := []struct {
 		username string
@@ -49,10 +50,10 @@ func TestAuthenticateRoles(t *testing.T) {
 }
 
 func TestAuthenticateReflectsCurrentState(t *testing.T) {
-	svc, pool := setup(t)
+	svc, acc, pool := setup(t)
 	ctx := context.Background()
 
-	if _, err := svc.RegisterDoctor(ctx, auth.DoctorInput{
+	if _, err := acc.RegisterDoctor(ctx, accounts.DoctorInput{
 		UserInfo: input("boss", "boss@example.com"), IsAdmin: true,
 	}); err != nil {
 		t.Fatal(err)
@@ -81,7 +82,7 @@ func TestAuthenticateReflectsCurrentState(t *testing.T) {
 }
 
 func TestAuthenticateRejects(t *testing.T) {
-	svc, _ := setup(t)
+	svc, _, _ := setup(t)
 	ctx := context.Background()
 
 	// valid signature, but the user doesn't exist
