@@ -75,6 +75,32 @@ func (q *Queries) GetPatientAppointment(ctx context.Context, arg GetPatientAppoi
 	return i, err
 }
 
+const getPatientAppointmentForUpdate = `-- name: GetPatientAppointmentForUpdate :one
+SELECT appointment_id, doctor_id, patient_id, appointment_start, status, created_at, notes FROM appointments
+WHERE appointment_id = $1 AND patient_id = $2
+    FOR UPDATE
+`
+
+type GetPatientAppointmentForUpdateParams struct {
+	AppointmentID int32
+	PatientID     int32
+}
+
+func (q *Queries) GetPatientAppointmentForUpdate(ctx context.Context, arg GetPatientAppointmentForUpdateParams) (Appointment, error) {
+	row := q.db.QueryRow(ctx, getPatientAppointmentForUpdate, arg.AppointmentID, arg.PatientID)
+	var i Appointment
+	err := row.Scan(
+		&i.AppointmentID,
+		&i.DoctorID,
+		&i.PatientID,
+		&i.AppointmentStart,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Notes,
+	)
+	return i, err
+}
+
 const getShift = `-- name: GetShift :one
 SELECT schedule_id, doctor_id, weekday, start_time, end_time, break_start, break_end FROM doctor_schedules WHERE doctor_id = $1 AND weekday = $2
 `
@@ -182,6 +208,127 @@ func (q *Queries) ListBookedStarts(ctx context.Context, arg ListBookedStartsPara
 	return items, nil
 }
 
+const listDoctorAppointmentsBetween = `-- name: ListDoctorAppointmentsBetween :many
+SELECT a.appointment_id, a.patient_id,
+       u.firstname AS patient_firstname, u.lastname AS patient_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.patient_id
+WHERE a.doctor_id = $1
+  AND a.appointment_start >= $2::timestamptz
+  AND a.appointment_start <  $3::timestamptz
+ORDER BY a.appointment_start
+`
+
+type ListDoctorAppointmentsBetweenParams struct {
+	DoctorID int32
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+type ListDoctorAppointmentsBetweenRow struct {
+	AppointmentID    int32
+	PatientID        int32
+	PatientFirstname pgtype.Text
+	PatientLastname  pgtype.Text
+	AppointmentStart time.Time
+	Status           AppointmentStatus
+	Notes            pgtype.Text
+}
+
+func (q *Queries) ListDoctorAppointmentsBetween(ctx context.Context, arg ListDoctorAppointmentsBetweenParams) ([]ListDoctorAppointmentsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, listDoctorAppointmentsBetween, arg.DoctorID, arg.FromTime, arg.ToTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDoctorAppointmentsBetweenRow
+	for rows.Next() {
+		var i ListDoctorAppointmentsBetweenRow
+		if err := rows.Scan(
+			&i.AppointmentID,
+			&i.PatientID,
+			&i.PatientFirstname,
+			&i.PatientLastname,
+			&i.AppointmentStart,
+			&i.Status,
+			&i.Notes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPatientAppointments = `-- name: ListPatientAppointments :many
+SELECT a.appointment_id, a.doctor_id,
+       u.firstname AS doctor_firstname, u.lastname AS doctor_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.doctor_id
+WHERE a.patient_id = $1
+  AND (NOT $2::boolean
+       OR (a.status = 'booked' AND a.appointment_start > now()))
+ORDER BY CASE WHEN $2::boolean THEN a.appointment_start END ASC,
+         a.appointment_start DESC
+    LIMIT $4 OFFSET $3
+`
+
+type ListPatientAppointmentsParams struct {
+	PatientID    int32
+	UpcomingOnly bool
+	PageOffset   int32
+	PageSize     int32
+}
+
+type ListPatientAppointmentsRow struct {
+	AppointmentID    int32
+	DoctorID         int32
+	DoctorFirstname  pgtype.Text
+	DoctorLastname   pgtype.Text
+	AppointmentStart time.Time
+	Status           AppointmentStatus
+	Notes            pgtype.Text
+}
+
+// upcoming: soonest first; history: newest first
+func (q *Queries) ListPatientAppointments(ctx context.Context, arg ListPatientAppointmentsParams) ([]ListPatientAppointmentsRow, error) {
+	rows, err := q.db.Query(ctx, listPatientAppointments,
+		arg.PatientID,
+		arg.UpcomingOnly,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPatientAppointmentsRow
+	for rows.Next() {
+		var i ListPatientAppointmentsRow
+		if err := rows.Scan(
+			&i.AppointmentID,
+			&i.DoctorID,
+			&i.DoctorFirstname,
+			&i.DoctorLastname,
+			&i.AppointmentStart,
+			&i.Status,
+			&i.Notes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDoctorShared = `-- name: LockDoctorShared :one
 SELECT d.doctor_id
 FROM doctors d
@@ -195,4 +342,30 @@ func (q *Queries) LockDoctorShared(ctx context.Context, doctorID int32) (int32, 
 	var doctor_id int32
 	err := row.Scan(&doctor_id)
 	return doctor_id, err
+}
+
+const rescheduleAppointment = `-- name: RescheduleAppointment :one
+UPDATE appointments SET appointment_start = $2
+WHERE appointment_id = $1
+    RETURNING appointment_id, doctor_id, patient_id, appointment_start, status, created_at, notes
+`
+
+type RescheduleAppointmentParams struct {
+	AppointmentID    int32
+	AppointmentStart time.Time
+}
+
+func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error) {
+	row := q.db.QueryRow(ctx, rescheduleAppointment, arg.AppointmentID, arg.AppointmentStart)
+	var i Appointment
+	err := row.Scan(
+		&i.AppointmentID,
+		&i.DoctorID,
+		&i.PatientID,
+		&i.AppointmentStart,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Notes,
+	)
+	return i, err
 }

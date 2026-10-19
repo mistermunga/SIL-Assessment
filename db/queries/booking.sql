@@ -47,3 +47,38 @@ WHERE appointment_id = sqlc.arg(appointment_id)
 
 -- name: GetPatientAppointment :one
 SELECT * FROM appointments WHERE appointment_id = $1 AND patient_id = $2;
+
+-- name: GetPatientAppointmentForUpdate :one
+SELECT * FROM appointments
+WHERE appointment_id = $1 AND patient_id = $2
+    FOR UPDATE;
+
+-- name: RescheduleAppointment :one
+UPDATE appointments SET appointment_start = $2
+WHERE appointment_id = $1
+    RETURNING *;
+
+-- name: ListPatientAppointments :many
+SELECT a.appointment_id, a.doctor_id,
+       u.firstname AS doctor_firstname, u.lastname AS doctor_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.doctor_id
+WHERE a.patient_id = sqlc.arg(patient_id)
+  AND (NOT sqlc.arg(upcoming_only)::boolean
+       OR (a.status = 'booked' AND a.appointment_start > now()))
+-- upcoming: soonest first; history: newest first
+ORDER BY CASE WHEN sqlc.arg(upcoming_only)::boolean THEN a.appointment_start END ASC,
+         a.appointment_start DESC
+    LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: ListDoctorAppointmentsBetween :many
+SELECT a.appointment_id, a.patient_id,
+       u.firstname AS patient_firstname, u.lastname AS patient_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.patient_id
+WHERE a.doctor_id = sqlc.arg(doctor_id)
+  AND a.appointment_start >= sqlc.arg(from_time)::timestamptz
+  AND a.appointment_start <  sqlc.arg(to_time)::timestamptz
+ORDER BY a.appointment_start;
