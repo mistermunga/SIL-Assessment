@@ -1,6 +1,7 @@
 package main
 
 import (
+	"clinic/internal/accounts"
 	"clinic/internal/auth"
 	"clinic/internal/config"
 	"clinic/internal/httpapi"
@@ -52,10 +53,11 @@ func run() error {
 	st := store.NewStore(pool)
 	tokens := auth.NewTokenManager(conf.JWTSecret, conf.AccessTokenTTL)
 	authSvc := auth.NewService(st, tokens)
+	accountsSvc := accounts.NewService(st)
 
 	api := httpapi.NewServer(authSvc, slog.Default(),
 		httpapi.NewHealthModule(pool),
-		// feature modules are added here, one line each
+		httpapi.NewAccountsModule(accountsSvc),
 	)
 
 	srv := &http.Server{
