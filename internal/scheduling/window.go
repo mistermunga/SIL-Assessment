@@ -24,7 +24,7 @@ type Window struct {
 // Fits reports whether a slot starting at minute m is bookable:
 // inside the shift and not overlapping the break.
 func (w Window) Fits(m int) bool {
-	if m < w.Start || m+SlotMinutes > w.End {
+	if m%SlotMinutes != 0 || m < w.Start || m+SlotMinutes > w.End {
 		return false
 	}
 	if w.HasBreak && m < w.BreakEnd && m+SlotMinutes > w.BreakStart {
