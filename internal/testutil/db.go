@@ -23,7 +23,12 @@ func NewPool(t *testing.T) *pgxpool.Pool {
 	}
 
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.MaxConns = 25
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
