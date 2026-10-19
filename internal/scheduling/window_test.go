@@ -21,6 +21,7 @@ func TestWindowFits(t *testing.T) {
 		{"13:00", 13 * 60, true}, // starts exactly when the break ends
 		{"16:30", 16*60 + 30, true},
 		{"17:00", 17 * 60, false},
+		{"09:15", 9*60 + 15, false},
 	}
 	for _, c := range cases {
 		if got := lunchDay.Fits(c.min); got != c.want {
