@@ -22,3 +22,10 @@ FROM users u
          LEFT JOIN patients p ON p.patient_id = u.user_id
          LEFT JOIN doctors  d ON d.doctor_id  = u.user_id
 WHERE u.user_id = $1 AND u.deleted_at IS NULL;
+
+-- name: ListDoctors :many
+SELECT d.doctor_id, u.firstname, u.lastname
+FROM doctors d
+         JOIN users u ON u.user_id = d.doctor_id
+WHERE u.deleted_at IS NULL
+ORDER BY u.lastname NULLS LAST, u.firstname NULLS LAST, d.doctor_id;

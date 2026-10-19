@@ -122,3 +122,37 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	)
 	return i, err
 }
+
+const listDoctors = `-- name: ListDoctors :many
+SELECT d.doctor_id, u.firstname, u.lastname
+FROM doctors d
+         JOIN users u ON u.user_id = d.doctor_id
+WHERE u.deleted_at IS NULL
+ORDER BY u.lastname NULLS LAST, u.firstname NULLS LAST, d.doctor_id
+`
+
+type ListDoctorsRow struct {
+	DoctorID  int32
+	Firstname pgtype.Text
+	Lastname  pgtype.Text
+}
+
+func (q *Queries) ListDoctors(ctx context.Context) ([]ListDoctorsRow, error) {
+	rows, err := q.db.Query(ctx, listDoctors)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDoctorsRow
+	for rows.Next() {
+		var i ListDoctorsRow
+		if err := rows.Scan(&i.DoctorID, &i.Firstname, &i.Lastname); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
