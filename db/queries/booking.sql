@@ -82,3 +82,27 @@ WHERE a.doctor_id = sqlc.arg(doctor_id)
   AND a.appointment_start >= sqlc.arg(from_time)::timestamptz
   AND a.appointment_start <  sqlc.arg(to_time)::timestamptz
 ORDER BY a.appointment_start;
+
+-- name: MarkAppointmentOutcome :execrows
+UPDATE appointments
+SET status = sqlc.arg(status)::appointment_status,
+    notes  = COALESCE(sqlc.narg(notes)::text, notes)
+WHERE appointment_id = sqlc.arg(appointment_id)
+  AND doctor_id      = sqlc.arg(doctor_id)
+  AND status = 'booked'
+  AND appointment_start <= now();
+
+-- name: GetDoctorAppointment :one
+SELECT * FROM appointments WHERE appointment_id = $1 AND doctor_id = $2;
+
+-- name: ListPendingOutcomes :many
+SELECT a.appointment_id, a.patient_id,
+       u.firstname AS patient_firstname, u.lastname AS patient_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.patient_id
+WHERE a.doctor_id = sqlc.arg(doctor_id)
+  AND a.status = 'booked'
+  AND a.appointment_start <= now()
+ORDER BY a.appointment_start
+    LIMIT sqlc.arg(page_size);

@@ -51,6 +51,30 @@ func (q *Queries) DoctorExists(ctx context.Context, doctorID int32) (bool, error
 	return exists, err
 }
 
+const getDoctorAppointment = `-- name: GetDoctorAppointment :one
+SELECT appointment_id, doctor_id, patient_id, appointment_start, status, created_at, notes FROM appointments WHERE appointment_id = $1 AND doctor_id = $2
+`
+
+type GetDoctorAppointmentParams struct {
+	AppointmentID int32
+	DoctorID      int32
+}
+
+func (q *Queries) GetDoctorAppointment(ctx context.Context, arg GetDoctorAppointmentParams) (Appointment, error) {
+	row := q.db.QueryRow(ctx, getDoctorAppointment, arg.AppointmentID, arg.DoctorID)
+	var i Appointment
+	err := row.Scan(
+		&i.AppointmentID,
+		&i.DoctorID,
+		&i.PatientID,
+		&i.AppointmentStart,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Notes,
+	)
+	return i, err
+}
+
 const getPatientAppointment = `-- name: GetPatientAppointment :one
 SELECT appointment_id, doctor_id, patient_id, appointment_start, status, created_at, notes FROM appointments WHERE appointment_id = $1 AND patient_id = $2
 `
@@ -329,6 +353,62 @@ func (q *Queries) ListPatientAppointments(ctx context.Context, arg ListPatientAp
 	return items, nil
 }
 
+const listPendingOutcomes = `-- name: ListPendingOutcomes :many
+SELECT a.appointment_id, a.patient_id,
+       u.firstname AS patient_firstname, u.lastname AS patient_lastname,
+       a.appointment_start, a.status, a.notes
+FROM appointments a
+         JOIN users u ON u.user_id = a.patient_id
+WHERE a.doctor_id = $1
+  AND a.status = 'booked'
+  AND a.appointment_start <= now()
+ORDER BY a.appointment_start
+    LIMIT $2
+`
+
+type ListPendingOutcomesParams struct {
+	DoctorID int32
+	PageSize int32
+}
+
+type ListPendingOutcomesRow struct {
+	AppointmentID    int32
+	PatientID        int32
+	PatientFirstname pgtype.Text
+	PatientLastname  pgtype.Text
+	AppointmentStart time.Time
+	Status           AppointmentStatus
+	Notes            pgtype.Text
+}
+
+func (q *Queries) ListPendingOutcomes(ctx context.Context, arg ListPendingOutcomesParams) ([]ListPendingOutcomesRow, error) {
+	rows, err := q.db.Query(ctx, listPendingOutcomes, arg.DoctorID, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingOutcomesRow
+	for rows.Next() {
+		var i ListPendingOutcomesRow
+		if err := rows.Scan(
+			&i.AppointmentID,
+			&i.PatientID,
+			&i.PatientFirstname,
+			&i.PatientLastname,
+			&i.AppointmentStart,
+			&i.Status,
+			&i.Notes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDoctorShared = `-- name: LockDoctorShared :one
 SELECT d.doctor_id
 FROM doctors d
@@ -342,6 +422,36 @@ func (q *Queries) LockDoctorShared(ctx context.Context, doctorID int32) (int32, 
 	var doctor_id int32
 	err := row.Scan(&doctor_id)
 	return doctor_id, err
+}
+
+const markAppointmentOutcome = `-- name: MarkAppointmentOutcome :execrows
+UPDATE appointments
+SET status = $1::appointment_status,
+    notes  = COALESCE($2::text, notes)
+WHERE appointment_id = $3
+  AND doctor_id      = $4
+  AND status = 'booked'
+  AND appointment_start <= now()
+`
+
+type MarkAppointmentOutcomeParams struct {
+	Status        AppointmentStatus
+	Notes         pgtype.Text
+	AppointmentID int32
+	DoctorID      int32
+}
+
+func (q *Queries) MarkAppointmentOutcome(ctx context.Context, arg MarkAppointmentOutcomeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAppointmentOutcome,
+		arg.Status,
+		arg.Notes,
+		arg.AppointmentID,
+		arg.DoctorID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const rescheduleAppointment = `-- name: RescheduleAppointment :one
