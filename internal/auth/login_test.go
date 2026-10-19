@@ -10,10 +10,10 @@ import (
 )
 
 func TestLogin(t *testing.T) {
-	svc, _ := setup(t)
+	svc, acc, _ := setup(t)
 	ctx := context.Background()
 
-	u, err := svc.RegisterPatient(ctx, input("alice", "alice@example.com"))
+	u, err := acc.RegisterPatient(ctx, input("alice", "alice@example.com"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,13 +34,13 @@ func TestLogin(t *testing.T) {
 }
 
 func TestLoginFailures(t *testing.T) {
-	svc, pool := setup(t)
+	svc, acc, pool := setup(t)
 	ctx := context.Background()
 
-	if _, err := svc.RegisterPatient(ctx, input("alice", "alice@example.com")); err != nil {
+	if _, err := acc.RegisterPatient(ctx, input("alice", "alice@example.com")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.RegisterPatient(ctx, input("gone", "gone@example.com")); err != nil {
+	if _, err := acc.RegisterPatient(ctx, input("gone", "gone@example.com")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, "UPDATE users SET deleted_at = now() WHERE username = 'gone'"); err != nil {
