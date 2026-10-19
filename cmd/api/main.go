@@ -1,7 +1,10 @@
 package main
 
 import (
+	"clinic/internal/auth"
 	"clinic/internal/config"
+	"clinic/internal/httpapi"
+	"clinic/internal/store"
 	"context"
 	"errors"
 	"fmt"
@@ -46,20 +49,18 @@ func run() error {
 		return fmt.Errorf("database unreachable: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if err := pool.Ping(pingCtx); err != nil {
-			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		_, _ = w.Write([]byte("ok"))
-	})
+	st := store.NewStore(pool)
+	tokens := auth.NewTokenManager(conf.JWTSecret, conf.AccessTokenTTL)
+	authSvc := auth.NewService(st, tokens)
+
+	api := httpapi.NewServer(authSvc, slog.Default(),
+		httpapi.NewHealthModule(pool),
+		// feature modules are added here, one line each
+	)
 
 	srv := &http.Server{
 		Addr:              ":" + conf.Port,
-		Handler:           mux,
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
