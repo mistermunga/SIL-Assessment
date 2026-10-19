@@ -1,30 +1,29 @@
-package auth_test
+package accounts_test
 
 import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 
-	"clinic/internal/auth"
+	"clinic/internal/accounts"
+	"clinic/internal/apperr"
+	"clinic/internal/password"
 	"clinic/internal/store"
 	"clinic/internal/testutil"
 )
 
 const testPassword = "correct-horse-battery"
 
-func setup(t *testing.T) (*auth.Service, *pgxpool.Pool) {
+func setup(t *testing.T) (*accounts.Service, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.NewPool(t)
-	tokens := auth.NewTokenManager(testSecret, 15*time.Minute)
-	return auth.NewService(store.NewStore(pool), tokens), pool
+	return accounts.NewService(store.NewStore(pool)), pool
 }
 
-func input(username, email string) auth.RegisterInput {
-	return auth.RegisterInput{
+func input(username, email string) accounts.RegisterInput {
+	return accounts.RegisterInput{
 		Username:  username,
 		Email:     email,
 		Password:  testPassword,
@@ -56,7 +55,7 @@ func TestRegisterPatient(t *testing.T) {
 	if u.Email != "alice@example.com" {
 		t.Errorf("email = %q, want alice@example.com", u.Email)
 	}
-	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(testPassword)) != nil {
+	if !password.Matches(u.PasswordHash, testPassword) {
 		t.Error("stored hash does not match the password")
 	}
 	if n := rowCount(t, pool, "SELECT count(*) FROM patients WHERE patient_id = $1", u.UserID); n != 1 {
@@ -70,7 +69,7 @@ func TestRegisterPatient(t *testing.T) {
 func TestRegisterDoctor(t *testing.T) {
 	svc, pool := setup(t)
 
-	u, err := svc.RegisterDoctor(context.Background(), auth.DoctorInput{
+	u, err := svc.RegisterDoctor(context.Background(), accounts.DoctorInput{
 		UserInfo: input("dr_bob", "bob@example.com"),
 		IsAdmin:  true,
 	})
@@ -96,7 +95,7 @@ func TestRegisterDuplicateUsername(t *testing.T) {
 	}
 	// same username with different case, different email
 	_, err := svc.RegisterPatient(ctx, input("ALICE", "a2@example.com"))
-	if !errors.Is(err, auth.ErrUsernameTaken) {
+	if !errors.Is(err, accounts.ErrUsernameTaken) {
 		t.Fatalf("err = %v, want ErrUsernameTaken", err)
 	}
 	if n := rowCount(t, pool, "SELECT count(*) FROM users"); n != 1 {
@@ -112,7 +111,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := svc.RegisterPatient(ctx, input("alice2", "A@Example.com"))
-	if !errors.Is(err, auth.ErrEmailTaken) {
+	if !errors.Is(err, accounts.ErrEmailTaken) {
 		t.Fatalf("err = %v, want ErrEmailTaken", err)
 	}
 }
@@ -124,7 +123,7 @@ func TestRegisterValidation(t *testing.T) {
 	in.Password = "short"
 	_, err := svc.RegisterPatient(context.Background(), in)
 
-	var ve *auth.ValidationError
+	var ve *apperr.ValidationError
 	if !errors.As(err, &ve) {
 		t.Fatalf("err = %v, want *ValidationError", err)
 	}
