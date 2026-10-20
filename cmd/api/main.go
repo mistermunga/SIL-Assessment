@@ -57,6 +57,20 @@ func run() error {
 	accountsSvc := accounts.NewService(st)
 	bookingSvc := booking.NewService(st, conf.ClinicTZ)
 
+	created, err := accountsSvc.EnsureAdmin(ctx, accounts.RegisterInput{
+		Username:  conf.AdminUsername,
+		Email:     conf.AdminEmail,
+		Password:  conf.AdminPassword,
+		Firstname: "Clinic",
+		Lastname:  "Administrator",
+	})
+	if err != nil {
+		return fmt.Errorf("seed administrator: %w", err)
+	}
+	if created {
+		slog.Info("created the initial administrator", "username", conf.AdminUsername)
+	}
+
 	api := httpapi.NewServer(authSvc, slog.Default(),
 		httpapi.NewHealthModule(pool),
 		httpapi.NewAccountsModule(accountsSvc, tokens),
