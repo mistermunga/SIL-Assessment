@@ -58,6 +58,7 @@ func run() error {
 	api := httpapi.NewServer(authSvc, slog.Default(),
 		httpapi.NewHealthModule(pool),
 		httpapi.NewAccountsModule(accountsSvc, tokens),
+		httpapi.NewAuthModule(authSvc),
 	)
 
 	srv := &http.Server{
