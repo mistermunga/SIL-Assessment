@@ -28,6 +28,7 @@ SELECT d.doctor_id, u.firstname, u.lastname
 FROM doctors d
          JOIN users u ON u.user_id = d.doctor_id
 WHERE u.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM doctor_schedules s WHERE s.doctor_id = d.doctor_id)
 ORDER BY u.lastname NULLS LAST, u.firstname NULLS LAST, d.doctor_id;
 
 -- name: AdminExists :one
