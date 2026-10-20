@@ -13,6 +13,8 @@ type Config struct {
 	ClinicTZ       *time.Location
 	Port           string
 	AccessTokenTTL time.Duration
+	AdminUsername  string
+	AdminPassword  string
 }
 
 func Load() (Config, error) {
@@ -38,6 +40,11 @@ func Load() (Config, error) {
 	}
 
 	config.Port = getOr("PORT", "8060")
+	config.AdminUsername = getOr("ADMIN_USERNAME", "administrator")
+
+	if password := require("ADMIN_PASSWORD", &errs); password != "" {
+		config.AdminPassword = password
+	}
 
 	ttl, err := time.ParseDuration(getOr("ACCESS_TOKEN_TTL", "15m"))
 	if err != nil {
