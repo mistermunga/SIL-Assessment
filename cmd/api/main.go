@@ -3,6 +3,7 @@ package main
 import (
 	"clinic/internal/accounts"
 	"clinic/internal/auth"
+	"clinic/internal/booking"
 	"clinic/internal/config"
 	"clinic/internal/httpapi"
 	"clinic/internal/store"
@@ -54,11 +55,14 @@ func run() error {
 	tokens := auth.NewTokenManager(conf.JWTSecret, conf.AccessTokenTTL)
 	authSvc := auth.NewService(st, tokens)
 	accountsSvc := accounts.NewService(st)
+	bookingSvc := booking.NewService(st, conf.ClinicTZ)
 
 	api := httpapi.NewServer(authSvc, slog.Default(),
 		httpapi.NewHealthModule(pool),
 		httpapi.NewAccountsModule(accountsSvc, tokens),
 		httpapi.NewAuthModule(authSvc),
+		httpapi.NewBookingModule(bookingSvc, conf.ClinicTZ),
+		httpapi.NewDoctorsModule(accountsSvc),
 	)
 
 	srv := &http.Server{
