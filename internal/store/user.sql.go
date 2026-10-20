@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminExists = `-- name: AdminExists :one
+SELECT EXISTS (
+    SELECT 1 FROM doctors d
+                      JOIN users u ON u.user_id = d.doctor_id
+    WHERE d.is_admin AND u.deleted_at IS NULL
+)
+`
+
+func (q *Queries) AdminExists(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, adminExists)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createDoctor = `-- name: CreateDoctor :exec
 INSERT INTO doctors (doctor_id, is_admin) values ($1, $2)
 `

@@ -29,3 +29,10 @@ FROM doctors d
          JOIN users u ON u.user_id = d.doctor_id
 WHERE u.deleted_at IS NULL
 ORDER BY u.lastname NULLS LAST, u.firstname NULLS LAST, d.doctor_id;
+
+-- name: AdminExists :one
+SELECT EXISTS (
+    SELECT 1 FROM doctors d
+                      JOIN users u ON u.user_id = d.doctor_id
+    WHERE d.is_admin AND u.deleted_at IS NULL
+);
