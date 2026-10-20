@@ -14,6 +14,7 @@ type Config struct {
 	Port           string
 	AccessTokenTTL time.Duration
 	AdminUsername  string
+	AdminEmail     string
 	AdminPassword  string
 }
 
@@ -41,6 +42,7 @@ func Load() (Config, error) {
 
 	config.Port = getOr("PORT", "8060")
 	config.AdminUsername = getOr("ADMIN_USERNAME", "administrator")
+	config.AdminEmail = getOr("ADMIN_EMAIL", "admin@example.com")
 
 	if password := require("ADMIN_PASSWORD", &errs); password != "" {
 		config.AdminPassword = password
