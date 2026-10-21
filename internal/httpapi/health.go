@@ -16,7 +16,7 @@ func NewHealthModule(db Pinger) HealthModule { return HealthModule{db: db} }
 
 func (m HealthModule) Routes() []Route {
 	return []Route{
-		{Pattern: "GET /healthz", Handler: m.check},
+		{Pattern: "GET /healthz", Quiet: true, Handler: m.check},
 	}
 }
 
