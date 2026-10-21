@@ -14,9 +14,11 @@ type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
 // Route binds a "METHOD /path" pattern to a handler.
 // Access nil means the route is open: no token is read or checked.
 // A non-nil Access requires a valid token, then evaluates the rule on the caller.
+// Quiet routes (health checks) log successful requests at debug level.
 type Route struct {
 	Pattern string
 	Access  Access
+	Quiet   bool
 	Handler HandlerFunc
 }
 
@@ -60,9 +62,11 @@ func (s *Server) Handler() http.Handler {
 		if rt.Access != nil {
 			h = s.guard(rt.Access, h)
 		}
-		mux.Handle(rt.Pattern, s.adapt(h))
+		mux.Handle(rt.Pattern, s.adapt(rt, h))
 	}
-	return s.recoverPanic(mux)
+	// Outermost first, so the access log sees every response, including
+	// recovered panics and unmatched routes.
+	return s.logRequests(s.recoverPanic(s.routeMisses(mux)))
 }
 
 // OpenRoutes lists the routes that need no token, for auditing.
@@ -76,8 +80,12 @@ func (s *Server) OpenRoutes() []string {
 	return open
 }
 
-func (s *Server) adapt(h HandlerFunc) http.Handler {
+func (s *Server) adapt(rt Route, h HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if info := infoFrom(r.Context()); info != nil {
+			info.route = rt.Pattern
+			info.quiet = rt.Quiet
+		}
 		if err := h(w, r); err != nil {
 			s.writeError(w, r, err)
 		}
