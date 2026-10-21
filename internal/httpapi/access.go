@@ -83,6 +83,12 @@ func (s *Server) guard(access Access, next HandlerFunc) HandlerFunc {
 		if err != nil {
 			return err // infrastructure failure: 500, not 401
 		}
+		if info := infoFrom(r.Context()); info != nil {
+			info.userID = p.UserID
+		}
+		if !access(p) {
+			return apperr.ErrForbidden
+		}
 		if !access(p) {
 			return apperr.ErrForbidden
 		}

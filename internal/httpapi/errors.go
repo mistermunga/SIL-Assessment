@@ -84,6 +84,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if status == http.StatusUnauthorized {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 	}
+	s.log.Error("request failed", "request_id", requestID(r.Context()),
+		"method", r.Method, "path", r.URL.Path, "err", err)
 	_ = writeJSON(w, status, errorEnvelope{Error: body})
 }
 
@@ -98,7 +100,8 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 			if rec == http.ErrAbortHandler {
 				panic(rec) // the server's own signal to abort a response
 			}
-			s.log.Error("panic in handler", "method", r.Method, "path", r.URL.Path,
+			s.log.Error("panic in handler", "request_id", requestID(r.Context()),
+				"method", r.Method, "path", r.URL.Path,
 				"panic", rec, "stack", string(debug.Stack()))
 			_ = writeJSON(w, http.StatusInternalServerError, errorEnvelope{Error: internalBody})
 		}()
