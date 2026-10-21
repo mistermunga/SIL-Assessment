@@ -1,13 +1,8 @@
 package main
 
 import (
-	"clinic/internal/accounts"
-	"clinic/internal/auth"
-	"clinic/internal/booking"
+	"clinic/internal/app"
 	"clinic/internal/config"
-	"clinic/internal/httpapi"
-	"clinic/internal/scheduling"
-	"clinic/internal/store"
 	"context"
 	"errors"
 	"fmt"
@@ -52,40 +47,14 @@ func run() error {
 		return fmt.Errorf("database unreachable: %w", err)
 	}
 
-	st := store.NewStore(pool)
-	tokens := auth.NewTokenManager(conf.JWTSecret, conf.AccessTokenTTL)
-	authSvc := auth.NewService(st, tokens)
-	accountsSvc := accounts.NewService(st)
-	bookingSvc := booking.NewService(st, conf.ClinicTZ)
-	schedulingSvc := scheduling.NewService(st, conf.ClinicTZ)
-
-	created, err := accountsSvc.EnsureAdmin(ctx, accounts.RegisterInput{
-		Username:  conf.AdminUsername,
-		Email:     conf.AdminEmail,
-		Password:  conf.AdminPassword,
-		Firstname: "Clinic",
-		Lastname:  "Administrator",
-	})
-
+	handler, err := app.New(ctx, conf, pool, slog.Default())
 	if err != nil {
-		return fmt.Errorf("seed administrator: %w", err)
+		return err
 	}
-	if created {
-		slog.Info("created the initial administrator", "username", conf.AdminUsername)
-	}
-
-	api := httpapi.NewServer(authSvc, slog.Default(),
-		httpapi.NewHealthModule(pool),
-		httpapi.NewAccountsModule(accountsSvc, tokens),
-		httpapi.NewAuthModule(authSvc),
-		httpapi.NewBookingModule(bookingSvc, conf.ClinicTZ),
-		httpapi.NewDoctorsModule(accountsSvc),
-		httpapi.NewScheduleModule(schedulingSvc),
-	)
 
 	srv := &http.Server{
 		Addr:              ":" + conf.Port,
-		Handler:           api.Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
