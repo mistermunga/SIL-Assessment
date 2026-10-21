@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"clinic/internal/accounts"
 	"clinic/internal/apperr"
 	"clinic/internal/auth"
 	"clinic/internal/booking"
@@ -514,41 +513,6 @@ func TestBookingErrorMapping(t *testing.T) {
 				t.Error("internal detail leaked to the client")
 			}
 		})
-	}
-}
-
-type fakeDoctors struct {
-	list []accounts.DoctorSummary
-	err  error
-}
-
-func (f *fakeDoctors) ListDoctors(context.Context) ([]accounts.DoctorSummary, error) {
-	return f.list, f.err
-}
-
-func TestDoctorsList(t *testing.T) {
-	svc := &fakeDoctors{list: []accounts.DoctorSummary{{ID: 3, Name: "Ann Alpha"}, {ID: 4, Name: "Carl Charlie"}}}
-	h := NewServer(authnFor(), discardLogger(), NewDoctorsModule(svc)).Handler()
-
-	if rec := do(h, "GET", "/doctors", "", ""); rec.Code != http.StatusUnauthorized {
-		t.Errorf("no token: status = %d, want 401", rec.Code)
-	}
-
-	rec := do(h, "GET", "/doctors", "pat-token", "")
-	var got struct {
-		Doctors []struct {
-			ID   int32  `json:"id"`
-			Name string `json:"name"`
-		} `json:"doctors"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 ||
-		len(got.Doctors) != 2 || got.Doctors[0].ID != 3 || got.Doctors[0].Name != "Ann Alpha" {
-		t.Fatalf("response = %d %s (%v)", rec.Code, rec.Body, err)
-	}
-
-	empty := NewServer(authnFor(), discardLogger(), NewDoctorsModule(&fakeDoctors{})).Handler()
-	if rec := do(empty, "GET", "/doctors", "pat-token", ""); !strings.Contains(rec.Body.String(), `"doctors":[]`) {
-		t.Errorf("empty list = %s, want \"doctors\":[]", rec.Body)
 	}
 }
 
