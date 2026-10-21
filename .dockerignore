@@ -1,0 +1,11 @@
+.git
+.idea
+.env
+.env.*
+!.env.example
+.deploy
+backups
+design
+bin
+*.exe
+*.test
