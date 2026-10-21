@@ -6,6 +6,7 @@ import (
 	"clinic/internal/booking"
 	"clinic/internal/config"
 	"clinic/internal/httpapi"
+	"clinic/internal/scheduling"
 	"clinic/internal/store"
 	"context"
 	"errors"
@@ -56,6 +57,7 @@ func run() error {
 	authSvc := auth.NewService(st, tokens)
 	accountsSvc := accounts.NewService(st)
 	bookingSvc := booking.NewService(st, conf.ClinicTZ)
+	schedulingSvc := scheduling.NewService(st, conf.ClinicTZ)
 
 	created, err := accountsSvc.EnsureAdmin(ctx, accounts.RegisterInput{
 		Username:  conf.AdminUsername,
@@ -64,6 +66,7 @@ func run() error {
 		Firstname: "Clinic",
 		Lastname:  "Administrator",
 	})
+
 	if err != nil {
 		return fmt.Errorf("seed administrator: %w", err)
 	}
@@ -77,6 +80,7 @@ func run() error {
 		httpapi.NewAuthModule(authSvc),
 		httpapi.NewBookingModule(bookingSvc, conf.ClinicTZ),
 		httpapi.NewDoctorsModule(accountsSvc),
+		httpapi.NewScheduleModule(schedulingSvc),
 	)
 
 	srv := &http.Server{
