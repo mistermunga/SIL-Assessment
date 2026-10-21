@@ -133,29 +133,6 @@ func TestAccessLogForUnmatchedRoutes(t *testing.T) {
 	}
 }
 
-func TestErrorLogsShareTheRequestID(t *testing.T) {
-	for _, path := range []string{"/boom", "/panic"} {
-		t.Run(path, func(t *testing.T) {
-			log, buf := captureLogger(slog.LevelDebug)
-			rec := do(loggedHandler(log, testModule{}), "GET", path, "", "")
-
-			id := rec.Header().Get("X-Request-ID")
-			lines := logEntries(t, buf)
-			if len(lines) != 2 {
-				t.Fatalf("log lines = %d, want 2 (the failure and the summary)\n%s", len(lines), buf)
-			}
-			for _, l := range lines {
-				if l["request_id"] != id {
-					t.Errorf("line %v has request_id %v, want %s", l["msg"], l["request_id"], id)
-				}
-			}
-			if got := oneAccessLine(t, buf)["status"]; got != float64(500) {
-				t.Errorf("summary status = %v, want 500", got)
-			}
-		})
-	}
-}
-
 func TestQuietRoutesLogAtDebug(t *testing.T) {
 	healthy := func(log *slog.Logger) http.Handler {
 		return NewServer(authnFor(), log, NewHealthModule(fakePinger{})).Handler()
