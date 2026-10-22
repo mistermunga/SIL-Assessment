@@ -20,7 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM golang:${GO_VERSION} AS goose
 ARG GOOSE_VERSION
-RUN CGO_ENABLED=0 GOBIN=/out go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+RUN CGO_ENABLED=0 GOBIN=/out go install -tags='no_clickhouse no_libsql no_mssql no_mysql no_sqlite3 no_vertica no_ydb' \
+     github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 
 FROM alpine:${ALPINE_VERSION} AS runtime
 RUN addgroup -S app && adduser -S -G app app
