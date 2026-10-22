@@ -42,6 +42,7 @@ func (m BookingModule) Routes() []Route {
 	return []Route{
 		{Pattern: "POST /appointments", Access: Patient, Handler: m.book},
 		{Pattern: "GET /appointments", Access: Patient, Handler: m.mine},
+		{Pattern: "GET /patients/{id}/appointments", Access: Patient, Handler: m.patientUpcoming},
 		{Pattern: "PATCH /appointments/{id}/cancel", Access: Patient, Handler: m.cancel},
 		{Pattern: "PATCH /appointments/{id}/reschedule", Access: Patient, Handler: m.reschedule},
 		{Pattern: "GET /doctors/{id}/availability", Access: Authenticated, Handler: m.availability},
@@ -145,6 +146,31 @@ type slotResponse struct {
 type bookRequest struct {
 	DoctorID int32  `json:"doctor_id"`
 	Start    string `json:"start"`
+}
+
+func (m BookingModule) patientUpcoming(w http.ResponseWriter, r *http.Request) error {
+	id, err := pathID(r, "id")
+	if err != nil {
+		return err
+	}
+	p := principalFrom(r.Context())
+	if id != p.UserID {
+		return apperr.ErrForbidden // a patient reads only their own
+	}
+	limit, err := intParam(r, "limit")
+	if err != nil {
+		return err
+	}
+	offset, err := intParam(r, "offset")
+	if err != nil {
+		return err
+	}
+
+	list, err := m.svc.MyAppointments(r.Context(), p, true, limit, offset)
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, http.StatusOK, map[string]any{"patient_id": id, "appointments": m.patientEntries(list)})
 }
 
 func (m BookingModule) book(w http.ResponseWriter, r *http.Request) error {
