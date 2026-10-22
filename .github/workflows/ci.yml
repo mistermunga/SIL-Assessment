@@ -70,6 +70,17 @@ jobs:
       - name: Build the app image
         run: docker build --target runtime -t clinic-app:ci .
 
+      - name: Smoke-test the runtime image
+        run: |
+          out=$(docker run --rm --network none \
+            -e DATABASE_URL=postgres://x:x@db:5432/x \
+            -e JWT_SECRET=ci-secret-of-at-least-32-characters-long \
+            -e CLINIC_TIMEZONE=Africa/Nairobi \
+            -e ADMIN_PASSWORD=ci-password \
+            clinic-app:ci 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "database unreachable"
+
       - name: Validate docker-compose.yaml
         env:
           POSTGRES_PASSWORD: ci
