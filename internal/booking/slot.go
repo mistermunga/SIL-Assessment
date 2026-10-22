@@ -12,14 +12,22 @@ import (
 	"clinic/internal/store"
 )
 
-// checkStart runs the checks that need no database: grid alignment and not in the past.
+// minLeadTime is the notice required before an appointment starts.
+const minLeadTime = time.Hour
+
+// checkStart runs the checks that need no database: grid alignment, not in the past,
+// and at least minLeadTime from now.
 func (s *Service) checkStart(start time.Time) error {
 	local := start.In(s.loc)
 	if local.Second() != 0 || local.Nanosecond() != 0 {
 		return unavailable("start must be on the hour or half hour")
 	}
-	if !start.After(time.Now()) {
+	now := time.Now()
+	if !start.After(now) {
 		return unavailable("start is in the past")
+	}
+	if start.Before(now.Add(minLeadTime)) {
+		return unavailable("start must be at least 1 hour from now")
 	}
 	return nil
 }
