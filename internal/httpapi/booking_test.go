@@ -90,6 +90,7 @@ func TestBookingRouteAccess(t *testing.T) {
 		{"agenda", "GET", "/doctors/3/appointments?date=2026-10-26", "", []string{"doctor", "admin"}},
 		{"outcome", "PATCH", "/appointments/5/outcome", `{"outcome":"completed"}`, []string{"doctor", "admin"}},
 		{"pending outcomes", "GET", "/doctors/me/pending-outcomes", "", []string{"doctor", "admin"}},
+		{"upcoming appointments", "GET", "/patients/1/appointments", "", []string{"patient"}},
 	}
 	tokens := map[string]string{"patient": "pat-token", "doctor": "doc-token", "admin": "adm-token"}
 	h := bookingHandler(okBooking())
@@ -513,6 +514,37 @@ func TestBookingErrorMapping(t *testing.T) {
 				t.Error("internal detail leaked to the client")
 			}
 		})
+	}
+}
+
+func TestPatientUpcoming(t *testing.T) {
+	var gotUpcoming bool
+	var gotLimit, gotOffset, calls int
+	svc := okBooking()
+	svc.mine = func(_ auth.Principal, upcoming bool, limit, offset int) ([]booking.PatientAppointment, error) {
+		calls++
+		gotUpcoming, gotLimit, gotOffset = upcoming, limit, offset
+		return nil, nil
+	}
+	h := bookingHandler(svc)
+
+	rec := do(h, "GET", "/patients/1/appointments?limit=5&offset=2", "pat-token", "")
+	if rec.Code != 200 || !gotUpcoming || gotLimit != 5 || gotOffset != 2 {
+		t.Fatalf("status = %d, service got (%v, %d, %d)", rec.Code, gotUpcoming, gotLimit, gotOffset)
+	}
+	if !strings.Contains(rec.Body.String(), `"appointments":[]`) {
+		t.Errorf("empty list = %s", rec.Body)
+	}
+
+	calls = 0
+	if rec := do(h, "GET", "/patients/9/appointments", "pat-token", ""); rec.Code != 403 || calls != 0 {
+		t.Errorf("another patient's list: status = %d, service calls = %d, want 403 and 0", rec.Code, calls)
+	}
+	if rec := do(h, "GET", "/patients/abc/appointments", "pat-token", ""); rec.Code != 400 {
+		t.Errorf("bad id: status = %d, want 400", rec.Code)
+	}
+	if rec := do(h, "GET", "/patients/1/appointments?limit=x", "pat-token", ""); rec.Code != 422 {
+		t.Errorf("bad limit: status = %d, want 422", rec.Code)
 	}
 }
 

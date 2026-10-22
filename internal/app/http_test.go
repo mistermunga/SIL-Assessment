@@ -45,6 +45,7 @@ func TestEveryRouteEnforcesItsAccessRule(t *testing.T) {
 		{"PATCH", "/appointments/999999/cancel", map[string]string{"reason": "x"}, false, forPatients},
 		{"PATCH", "/appointments/999999/reschedule", map[string]string{"start": stamp(c.monday, 10, 0)}, false, forPatients},
 		{"PATCH", "/appointments/999999/outcome", map[string]string{"outcome": "completed"}, false, forDoctors},
+		{"GET", fmt.Sprintf("/patients/%d/appointments", c.alice.id), nil, false, forPatients},
 	}
 
 	for _, rt := range routes {

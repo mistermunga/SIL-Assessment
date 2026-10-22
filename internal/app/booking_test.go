@@ -804,3 +804,30 @@ func TestPendingOutcomes(t *testing.T) {
 	want(t, c.do("GET", "/doctors/me/pending-outcomes?limit=abc", c.house.token, nil), 422, "validation_failed")
 	want(t, c.do("GET", "/doctors/me/pending-outcomes", c.alice.token, nil), 403, "forbidden")
 }
+
+func TestPatientUpcomingEndpoint(t *testing.T) {
+	c := newClinic(t)
+	a1 := c.mustBook(c.alice, c.house.id, 10, 0)
+	a2 := c.mustBook(c.alice, c.adams.id, 11, 0)
+	a3 := c.mustBook(c.alice, c.house.id, 14, 0)
+	c.mustBook(c.bob, c.house.id, 15, 0)
+	must(t, c.cancel(c.alice, a3.ID, "schedule conflict"), 204)
+	c.pastAppointment(c.house.id, c.alice.id, 1, "completed")
+
+	path := fmt.Sprintf("/patients/%d/appointments", c.alice.id)
+	r := c.do("GET", path, c.alice.token, nil)
+	must(t, r, 200)
+	var got struct {
+		PatientID    int32              `json:"patient_id"`
+		Appointments []patientEntryBody `json:"appointments"`
+	}
+	r.decode(t, &got)
+	if got.PatientID != c.alice.id || !slices.Equal(ids(got.Appointments), []int32{a1.ID, a2.ID}) {
+		t.Fatalf("response = %s, want only %v, soonest first", r.body, []int32{a1.ID, a2.ID})
+	}
+
+	want(t, c.do("GET", path, c.bob.token, nil), 403, "forbidden")
+	want(t, c.do("GET", path, c.house.token, nil), 403, "forbidden")
+	want(t, c.do("GET", path, "", nil), 401, "unauthorized")
+	want(t, c.do("GET", "/patients/abc/appointments", c.alice.token, nil), 400, "bad_request")
+}
