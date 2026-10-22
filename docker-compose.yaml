@@ -1,0 +1,156 @@
+name: clinic
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+# One image carries the migrations; the same image runs them against either database.
+x-goose: &goose
+  image: clinic-app:${APP_TAG:-current}
+  pull_policy: never
+  entrypoint: ["goose", "-dir", "/migrations"]
+  command: ["up"]
+  restart: "no"
+  depends_on:
+    db: { condition: service_healthy }
+  networks: [data]
+  logging: *logging
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      CLINIC_DB_PASSWORD: ${CLINIC_DB_PASSWORD:?set CLINIC_DB_PASSWORD in .env}
+      CLINIC_TEST_DB_PASSWORD: ${CLINIC_TEST_DB_PASSWORD:?set CLINIC_TEST_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1 forces TCP: the temporary server used during first-time init has no TCP listener.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [data]
+    logging: *logging
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      # A directory, not a single file: git replaces files, and a single-file mount keeps the old inode.
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - acme:/var/www/certbot:ro
+    # reload every 6 hours so a renewed certificate is picked up without a restart
+    command:
+      - /bin/sh
+      - -c
+      - 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    networks: [edge]
+    logging: *logging
+
+  # One-off: `docker compose run certbot ...`, used by deploy/init-tls.sh.
+  certbot:
+    image: certbot/certbot:v4.2.0   # pin to the newest certbot/certbot tag on Docker Hub
+    profiles: ["tools"]
+    entrypoint: ["certbot"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:?set LETSENCRYPT_EMAIL in .env}
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - acme:/var/www/certbot
+    networks: [edge]
+
+  # Tries to renew twice a day; certbot only acts within 30 days of expiry.
+  certbot-renew:
+    image: certbot/certbot:v4.2.0
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - acme:/var/www/certbot
+    networks: [edge]
+    logging: *logging
+
+  app:
+    image: clinic-app:${APP_TAG:-current}
+    pull_policy: never
+    restart: unless-stopped
+    stop_grace_period: 15s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://clinic:${CLINIC_DB_PASSWORD:?}@db:5432/clinic?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CLINIC_TIMEZONE: ${CLINIC_TIMEZONE:?set CLINIC_TIMEZONE in .env}
+      PORT: "8060"
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-administrator}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@clinic.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${PORT}/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [edge, data]
+    logging: *logging
+
+  # Applies pending migrations to the production database. Also runs on a plain `docker compose up`.
+  migrate:
+    <<: *goose
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://clinic:${CLINIC_DB_PASSWORD:?}@db:5432/clinic?sslmode=disable
+
+  # One-off tools, started only when named: `docker compose run test`.
+  migrate-test:
+    <<: *goose
+    profiles: ["tools"]
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://clinic_test:${CLINIC_TEST_DB_PASSWORD:?}@db:5432/clinic_test?sslmode=disable
+
+  test:
+    profiles: ["tools"]
+    image: clinic-test:${APP_TAG:-current}
+    pull_policy: never
+    environment:
+      CI: "true"   # a missing TEST_DATABASE_URL fails instead of skipping
+      TEST_DATABASE_URL: postgres://clinic_test:${CLINIC_TEST_DB_PASSWORD:?}@db:5432/clinic_test?sslmode=disable
+    volumes:
+      - gocache:/root/.cache/go-build   # keeps the race-instrumented build between deploys
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [data]
+
+networks:
+  edge: {}
+  data:
+    internal: true   # no route out; only the app, migrations and tests join it
+
+volumes:
+  pgdata:
+  gocache:
+  letsencrypt:
+  acme:
