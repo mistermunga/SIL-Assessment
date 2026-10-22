@@ -25,7 +25,7 @@ services:
       CLINIC_DB_PASSWORD: ${CLINIC_DB_PASSWORD:?set CLINIC_DB_PASSWORD in .env}
       CLINIC_TEST_DB_PASSWORD: ${CLINIC_TEST_DB_PASSWORD:?set CLINIC_TEST_DB_PASSWORD in .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # -h 127.0.0.1 forces TCP: the temporary server used during first-time init has no TCP listener.
