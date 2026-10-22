@@ -62,7 +62,7 @@ func (s *Service) FreeSlots(ctx context.Context, doctorID int32, day time.Time) 
 	out := []time.Time{}
 	for _, m := range scheduling.WindowOf(shift).Slots() {
 		slot := time.Date(y, mo, d, m/60, m%60, 0, 0, s.loc)
-		if !slot.After(now) {
+		if slot.Before(now.Add(minLeadTime)) {
 			continue
 		}
 		if _, ok := taken[slot.Unix()]; ok {
