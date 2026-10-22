@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	_ "time/tzdata"
 )
 
 type Config struct {
