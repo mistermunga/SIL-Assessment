@@ -78,7 +78,7 @@ Unit tests sit next to the service they cover. `internal/app` holds the integrat
 Every request and response body is JSON. Timestamps are RFC 3339 with an offset (`2026-10-26T10:00:00+03:00`); dates are `YYYY-MM-DD`. Authenticated routes need `Authorization: Bearer <token>`. Slots are 30 minutes, Monday to Friday.
 
 ```bash
-BASE=https://<your-domain>
+BASE=https://clinic.ryansbeanfactory.xyz
 
 # 1. Register (returns a token) or log in
 curl -s $BASE/patients -d '{"username":"jane","email":"jane@example.com","password":"S3cure-pass!","firstname":"Jane","lastname":"Doe"}'
